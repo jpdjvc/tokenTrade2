@@ -79,23 +79,20 @@ contract Seller is Ownable {
         for(uint i=0; i<offer.listingIds.length; i++){
             Listing memory l = _idToListing[offer.listingIds[i]];
             ERC721(l.nftAddress).safeTransferFrom(msg.sender, offer.offererAddress, l.tokenId);
+            l.isValidListing = false;
         }
 
         // transfer offerers NFTs
         for(uint i=0; i<offer.tokenIds.length; i++){
             ERC721(offer.nftAddresses[i]).safeTransferFrom(offer.offererAddress, msg.sender, offer.tokenIds[i]);
         }
-
-
-
-
     }
 
     function _validateOffer(uint offerId_) internal view {
         require(offerId_>=0 && offerId_ < _offers.length);
         Offer memory offer = _offers[offerId_];
         
-        // validate listing is still valid
+        // ensure listing is still valid
         for(uint i=0; i<offer.listingIds.length; i++){
             Listing memory l = _idToListing[offer.listingIds[i]];
             require(l.isValidListing);
