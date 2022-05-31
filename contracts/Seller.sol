@@ -12,7 +12,6 @@ function name() external view returns (string memory);
 
 interface ERC721{
     function getApproved(uint256 tokenId) external view returns (address);
-    function transferFrom(address from, address to, uint256 tokenId) external;
     function safeTransferFrom(address from, address to, uint256 tokenId) external;
 }
 
@@ -41,9 +40,10 @@ contract Seller is Ownable {
     mapping (uint => Listing) private _idToListing;
     Offer[] private _offers;
 
-    constructor(address owner_) {
-        _transferOwnership(owner_);
+    function getListingCount() public view returns (uint){
+        return _listingIdCounter;
     }
+
 
     function createListing(address nftAddress_, uint tokenId_) public onlyOwner {
         Listing memory l = Listing(nftAddress_, tokenId_, true);
