@@ -55,7 +55,7 @@ describe("Seller Contract", function () {
         for(let i = 0; i<nftSupply; i++){
             expect(await nft.ownerOf(i)).is.equal(nftIdToOwner[i].address, "NFT owners not correct");
         }
-        
+
         
         jpTokenSupply = 1000;
         rats = [0.2, 0.3, 0.5];
@@ -115,6 +115,8 @@ describe("Seller Contract", function () {
         it("Should not allow for accepting offer twice", async function(){
             await expect(seller.acceptOffer(0)).to.be.revertedWith("Invalid offerId");
         });
+        
+        // TODO:: ensure tokens transferred ownership
 
     });
 

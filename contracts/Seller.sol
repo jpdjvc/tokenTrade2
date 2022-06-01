@@ -19,8 +19,10 @@ interface ERC721{
 
 contract Seller is Ownable {
 
-    uint _listingIdCounter;
-    uint _offerCounter;
+    uint private _listingIdCounter;
+    uint private _validListingCount;
+    uint private _offerCounter;
+    uint private _validOfferCount;
 
     struct Listing {
         address nftAddress;
@@ -54,6 +56,7 @@ contract Seller is Ownable {
         Listing memory l = Listing(nftAddress_, tokenId_, true);
         _idToListing[_listingIdCounter] = l;
         _listingIdCounter++;
+        _validListingCount++;
     }
 
     function makeOffer( uint[] calldata listingIds_, 
@@ -69,6 +72,7 @@ contract Seller is Ownable {
         // offer validation here... should this be done here? -- Expensive?
         _offers[_offerCounter] = Offer(msg.sender, listingIds_, nftAddresses_, tokenIds_, erc20Addresses_, erc20Amounts_, true);
         _offerCounter++;
+        _validOfferCount++;
     }
 
 
@@ -79,6 +83,7 @@ contract Seller is Ownable {
         // transfer offerers ERC20 tokens
         for(uint i=0; i<offer.erc20Addresses.length; i++){
             require(ERC20(offer.erc20Addresses[i]).transferFrom(offer.offererAddress, msg.sender, offer.erc20Amounts[i]));
+
         }
 
         // transfer Owners NFTs
@@ -86,6 +91,7 @@ contract Seller is Ownable {
             Listing memory l = _idToListing[offer.listingIds[i]];
             ERC721(l.nftAddress).safeTransferFrom(msg.sender, offer.offererAddress, l.tokenId);
             _idToListing[offer.listingIds[i]].isValidListing = false;
+            _validListingCount--;
         }
 
         // transfer offerers NFTs
@@ -93,6 +99,7 @@ contract Seller is Ownable {
             ERC721(offer.nftAddresses[i]).safeTransferFrom(offer.offererAddress, msg.sender, offer.tokenIds[i]);
         }
         _offers[offerId_].isValidOffer = false;
+        _validOfferCount--;
     }
 
     function _validateOffer(uint offerId_) internal view {
@@ -116,6 +123,20 @@ contract Seller is Ownable {
         for(uint i=0; i<offer.tokenIds.length; i++){
             require(ERC721(offer.nftAddresses[i]).getApproved(offer.tokenIds[i])==address(this), "Seller contract not authorized to transfer ERC721 tokens from offerer");
         }
+    }
+
+    // getOffers() NOT TESTED!!!! 
+    function getOffers() external view returns (Offer[] memory){
+        Offer[] memory validOffers = new Offer[](_validOfferCount);
+        uint j = 0;
+        for(uint i=0; i<_offerCounter; i++){
+            if(_offers[i].isValidOffer){
+                validOffers[j] = _offers[i];
+                j++;
+            }
+        }
+        require(j == _validOfferCount, "Error: did not get all valid offers");
+        return validOffers;
     }
 
 
