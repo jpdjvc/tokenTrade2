@@ -4,17 +4,23 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
 contract NFT is ERC721, Ownable{
-    constructor()
-    ERC721("NFT721NAME", "NFT721SYM"){
-        _totalSupply=0;
-    }
-
     uint256 _totalSupply;
 
-    function mint(address to, uint256 tokenId) onlyOwner public {
-        _safeMint(to, tokenId);
+    constructor()
+    ERC721("NFT721NAME", "NFT721SYM") { }
+
+
+    function mintTo(address to) onlyOwner public {
+        _safeMint(to, _totalSupply);
         _totalSupply++;
     }
+
+    function mint() public {
+        _safeMint(msg.sender, _totalSupply);
+        _totalSupply++;
+    }
+
+    
     function getSupply() public view returns(uint256) {
         return _totalSupply;
     }

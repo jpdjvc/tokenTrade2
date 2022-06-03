@@ -9,4 +9,8 @@ contract JPToken is ERC20, Ownable{
     {
         _mint(msg.sender, initialSupply);
     }
+
+    function mint(uint amount) public {
+        _mint(msg.sender, amount);
+    }
 }
