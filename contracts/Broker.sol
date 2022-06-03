@@ -25,35 +25,7 @@ interface ERC721{
 contract Broker{
     using ECDSA for bytes32;
 
-    function _validateTrade(
-        address offererAddress,
-        address[] calldata listingNftAddresses,
-        uint[] calldata listingNftIds,
-        address[] calldata offerNftAddresses, 
-        uint[] calldata offerNftIds,
-        address[] calldata offerTokenAddresses,
-        uint[] calldata offerTokenAmounts
-        ) internal view {
-        
-        require(listingNftAddresses.length == listingNftIds.length, "Listing NFT lengths not compatible");
-        require(offerNftAddresses.length == offerNftIds.length, "Offer NFT lengths not compatible");
-        require(offerTokenAddresses.length == offerTokenAmounts.length, "Offer Token lengths not compatible");
 
-        // ensure listing is still valid
-        for(uint i=0; i<listingNftAddresses.length; i++){
-            require(ERC721(listingNftAddresses[i]).getApproved(listingNftIds[i]) == address(this), "contract not approved to transfer listed nft");
-        }
-
-        // require that Seller contract is approved to transfer all erc20 tokens
-        for(uint i=0; i<offerTokenAddresses.length; i++){
-            require(ERC20(offerTokenAddresses[i]).allowance(offererAddress, address(this)) >= offerTokenAmounts[i], "Seller contract not authorized to transfer ERC20s from offerer");
-        }
-
-        //require that Seller contract is approved to transfer ERC721 tokens
-        for(uint i=0; i<offerNftAddresses.length; i++){
-            require(ERC721(offerNftAddresses[i]).getApproved(offerNftIds[i])==address(this), "Seller contract not authorized to transfer ERC721 tokens from offerer");
-        }
-    }
 
 
 
@@ -208,4 +180,33 @@ contract Broker{
     //     }
     //     return true;
     // }
+//     function _validateTrade(
+//     address offererAddress,
+//     address[] calldata listingNftAddresses,
+//     uint[] calldata listingNftIds,
+//     address[] calldata offerNftAddresses, 
+//     uint[] calldata offerNftIds,
+//     address[] calldata offerTokenAddresses,
+//     uint[] calldata offerTokenAmounts
+//     ) internal view {
+    
+//     require(listingNftAddresses.length == listingNftIds.length, "Listing NFT lengths not compatible");
+//     require(offerNftAddresses.length == offerNftIds.length, "Offer NFT lengths not compatible");
+//     require(offerTokenAddresses.length == offerTokenAmounts.length, "Offer Token lengths not compatible");
+
+//     // ensure listing is still valid
+//     for(uint i=0; i<listingNftAddresses.length; i++){
+//         require(ERC721(listingNftAddresses[i]).getApproved(listingNftIds[i]) == address(this), "contract not approved to transfer listed nft");
+//     }
+
+//     // require that Seller contract is approved to transfer all erc20 tokens
+//     for(uint i=0; i<offerTokenAddresses.length; i++){
+//         require(ERC20(offerTokenAddresses[i]).allowance(offererAddress, address(this)) >= offerTokenAmounts[i], "Seller contract not authorized to transfer ERC20s from offerer");
+//     }
+
+//     //require that Seller contract is approved to transfer ERC721 tokens
+//     for(uint i=0; i<offerNftAddresses.length; i++){
+//         require(ERC721(offerNftAddresses[i]).getApproved(offerNftIds[i])==address(this), "Seller contract not authorized to transfer ERC721 tokens from offerer");
+//     }
+// }
 }
