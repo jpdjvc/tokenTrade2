@@ -2,6 +2,7 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "hardhat/console.sol";
 
 
 
@@ -55,92 +56,156 @@ contract Broker{
     }
 
 
+
+
     function _verifySignatures(
-        bytes calldata sellerSignature,
-        bytes calldata offererSignature,
-        address offererAddress,
-        
-        address[] calldata listingNftAddresses,
-        uint[] calldata listingNftIds,
-        address[] calldata offerNftAddresses, 
-        uint[] calldata offerNftIds,
-        address[] calldata offerTokenAddresses,
-        uint[] calldata offerTokenAmounts
-        ) private view {
+        bytes calldata _signature, 
+        bytes memory _signedData, 
+        address _expectedAddress) internal pure{
 
-        bytes32 dataHashOffer = keccak256(abi.encodePacked(
-            listingNftAddresses, 
-            listingNftIds, 
-            offerNftAddresses, 
-            offerNftIds,
-            offerTokenAddresses,
-            offerTokenAmounts));
-
-        bytes32 dataHashSeller = keccak256(abi.encodePacked(
-            listingNftAddresses, 
-            listingNftIds));
-
-        bytes32 messageOffer = ECDSA.toEthSignedMessageHash(dataHashOffer);
-        bytes32 messageSeller = ECDSA.toEthSignedMessageHash(dataHashSeller);
-        address recoveredOffererAddress = ECDSA.recover(messageOffer, offererSignature);
-        address recoveredSellerAddress = ECDSA.recover(messageSeller, sellerSignature);
-        require(recoveredOffererAddress == offererAddress, "Corrupted offer data");
-        require(recoveredSellerAddress == msg.sender, "Corrupted seller data");
+        bytes32 dataHash = keccak256(_signedData);
+        bytes32 message = ECDSA.toEthSignedMessageHash(dataHash);
+        address recoveredAddress = ECDSA.recover(message, _signature);
+        require(recoveredAddress == _expectedAddress);
     }
 
-
-
+    /*
+    _data SHOULD BE IN ORDER OF:
+    uint listingsLength,
+    uint offerNftLength,
+    uint offerErc20Length,
+    address[] listingNftAddresses,
+    uint[] listingNftIds,
+    address[] offerNftAddresses, 
+    uint[] offerNftIds,
+    address[] offerTokenAddresses,
+    uint[] offerTokenAmounts
+    */
     function executeTrade(
-        bytes calldata sellerSignature,
-        bytes calldata offererSignature,
-        address offererAddress,
-        
-        address[] calldata listingNftAddresses,
-        uint[] calldata listingNftIds,
-        address[] calldata offerNftAddresses, 
-        uint[] calldata offerNftIds,
-        address[] calldata offerTokenAddresses,
-        uint[] calldata offerTokenAmounts
-        ) public returns (bool){
+        bytes calldata _sellerSignature,
+        bytes calldata _offererSignature,
+        address _offererAddress,
+        bytes memory _data
+        ) external {
 
-        _verifySignatures(
-            sellerSignature, 
-            offererSignature, 
-            offererAddress, 
-            listingNftAddresses, 
-            listingNftIds, 
-            offerNftAddresses, 
-            offerNftIds, 
-            offerTokenAddresses, 
-            offerTokenAmounts);
-        
-        // _validateTrade(
-        //     offererAddress, 
-        //     listingNftAddresses, 
-        //     listingNftIds, 
-        //     offerNftAddresses, 
-        //     offerNftIds, 
-        //     offerTokenAddresses, 
-        //     offerTokenAmounts);
+        _verifySignatures(_sellerSignature, _data, msg.sender);
+        _verifySignatures(_offererSignature, _data, _offererAddress);
 
+        uint listingsLength;
+        uint offerNftLength;
+        uint offerErc20Length;
+        uint i = 32;
+        assembly{mstore(listingsLength, add(_data, i))} //store the first uint into listings lengths
+        i+=32;
+        assembly{mstore(offerNftLength, add(_data, i))} //store second uint 
+        i+=32;
+        assembly{mstore(offerErc20Length, add(_data, i))} //store third uint
+        i+=32;
+        console.log(listingsLength);
+
+        uint j;
+        address[] memory listingNftAddresses = new address[](listingsLength);
+        for(j = i; i<32*listingsLength+i; j += 32){
+            assembly {mstore(add(listingNftAddresses, j), mload(add(_data, j)))}
+        }
+        i = j;
+
+        uint[] memory listingNftIds = new uint[](listingsLength);
+        for (; j <= 32*listingsLength + i; j += 32) {
+            assembly {mstore(add(listingNftIds, j), mload(add(_data, j)))}
+        }
+        i = j;
+
+        address[] memory offerNftAddresses = new address[](offerNftLength);
+        for(; j<20*offerNftLength + i; j+=20){
+            assembly {mstore(add(offerNftAddresses, j), mload(add(_data, j)))}
+        }
+        i = j;
+
+        uint[] memory offerNftIds = new uint[](offerNftLength);
+        for (; j <= 32*offerNftLength + i; j += 32) {
+            assembly {mstore(add(offerNftIds, j), mload(add(_data, j)))}
+        }
+        i = j;
+
+        address[] memory offerTokenAddresses = new address[](offerErc20Length);
+        for(; j<20*offerErc20Length + i; j+=20){
+            assembly {mstore(add(offerTokenAddresses, j), mload(add(_data, j)))}
+        }
+        i = j;
+
+        uint[] memory offerTokenAmounts = new uint[](offerErc20Length);
+        for (; i <= 32*offerErc20Length + i; j += 32) {
+            assembly {mstore(add(offerTokenAmounts, j), mload(add(_data, j)))}
+        }
 
         // transfer offerers ERC20 tokens
-        for(uint i=0; i<offerTokenAddresses.length; i++){
-            require(ERC20(offerTokenAddresses[i]).transferFrom(offererAddress, msg.sender, offerTokenAmounts[i]));
-
+        for(i=0; i<offerTokenAddresses.length; i++){
+            require(ERC20(offerTokenAddresses[i]).transferFrom(_offererAddress, msg.sender, offerTokenAmounts[i]));
         }
 
         // transfer Owners NFTs
-        for(uint i=0; i<listingNftAddresses.length; i++){
+        for(i=0; i<listingNftAddresses.length; i++){
             require(ERC721(listingNftAddresses[i]).getApproved(listingNftIds[i]) == address(this), "contract not approved to transfer listed nft");
-            ERC721(listingNftAddresses[i]).safeTransferFrom(msg.sender, offererAddress, listingNftIds[i]);
+            ERC721(listingNftAddresses[i]).safeTransferFrom(msg.sender, _offererAddress, listingNftIds[i]);
         }
 
         // transfer offerers NFTs
-        for(uint i=0; i<offerNftAddresses.length; i++){
+        for(i=0; i<offerNftAddresses.length; i++){
             require(ERC721(offerNftAddresses[i]).getApproved(offerNftIds[i])==address(this), "Seller contract not authorized to transfer ERC721 tokens from offerer");
-            ERC721(offerNftAddresses[i]).safeTransferFrom(offererAddress, msg.sender, offerNftIds[i]);
+            ERC721(offerNftAddresses[i]).safeTransferFrom(_offererAddress, msg.sender, offerNftIds[i]);
         }
-        return true;
+
+
     }
+
+
+    // function executeTrade(
+    //     bytes calldata sellerSignature,
+    //     bytes calldata offererSignature,
+    //     address offererAddress,
+    //     uint listingsLength,
+    //     uint offerNftLength,
+    //     uint offerErc20Length,
+    //     uint[] calldata listingNftIds,
+    //     uint[] calldata offerNftIds,
+    //     uint[] calldata offerTokenAmounts,
+
+    //     address[] calldata listingNftAddresses,
+    //     address[] calldata offerNftAddresses,
+    //     address[] calldata offerTokenAddresses,
+
+    //     ) public returns (bool){
+
+    //     _verifySignatures(
+    //         sellerSignature, 
+    //         offererSignature, 
+    //         offererAddress, 
+    //         listingNftAddresses, 
+    //         listingNftIds, 
+    //         offerNftAddresses, 
+    //         offerNftIds, 
+    //         offerTokenAddresses, 
+    //         offerTokenAmounts);
+
+
+    //     // transfer offerers ERC20 tokens
+    //     for(uint i=0; i<offerTokenAddresses.length; i++){
+    //         require(ERC20(offerTokenAddresses[i]).transferFrom(offererAddress, msg.sender, offerTokenAmounts[i]));
+
+    //     }
+
+    //     // transfer Owners NFTs
+    //     for(uint i=0; i<listingNftAddresses.length; i++){
+    //         require(ERC721(listingNftAddresses[i]).getApproved(listingNftIds[i]) == address(this), "contract not approved to transfer listed nft");
+    //         ERC721(listingNftAddresses[i]).safeTransferFrom(msg.sender, offererAddress, listingNftIds[i]);
+    //     }
+
+    //     // transfer offerers NFTs
+    //     for(uint i=0; i<offerNftAddresses.length; i++){
+    //         require(ERC721(offerNftAddresses[i]).getApproved(offerNftIds[i])==address(this), "Seller contract not authorized to transfer ERC721 tokens from offerer");
+    //         ERC721(offerNftAddresses[i]).safeTransferFrom(offererAddress, msg.sender, offerNftIds[i]);
+    //     }
+    //     return true;
+    // }
 }
