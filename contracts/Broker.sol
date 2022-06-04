@@ -30,15 +30,21 @@ contract Broker{
 
 
 
-    function _verifySignatures(
+    function _verifySignature(
         bytes calldata _signature, 
-        bytes memory _signedData, 
-        address _expectedAddress) internal pure{
+        bytes memory _data, 
+        address _expectedAddress) public view returns(bool) {
 
-        bytes32 dataHash = keccak256(_signedData);
+        
+        
+        bytes32 dataHash = keccak256(abi.encodePacked(_data));
+
+        console.logBytes32(dataHash);
         bytes32 message = ECDSA.toEthSignedMessageHash(dataHash);
+        console.logBytes32(message);
         address recoveredAddress = ECDSA.recover(message, _signature);
-        require(recoveredAddress == _expectedAddress);
+        // require(recoveredAddress != _expectedAddress);
+        return recoveredAddress == _expectedAddress;
     }
 
     /*
@@ -60,8 +66,8 @@ contract Broker{
         bytes memory _data
         ) external {
 
-        _verifySignatures(_sellerSignature, _data, msg.sender);
-        _verifySignatures(_offererSignature, _data, _offererAddress);
+        require(_verifySignature(_sellerSignature, _data, msg.sender));
+        require(_verifySignature(_offererSignature, _data, _offererAddress));
 
         uint listingsLength;
         uint offerNftLength;
@@ -73,7 +79,12 @@ contract Broker{
         i+=32;
         assembly{mstore(offerErc20Length, add(_data, i))} //store third uint
         i+=32;
+
         console.log(listingsLength);
+        console.log(offerNftLength);
+        console.log(offerErc20Length);
+
+        // abi.decode(_data, (uint256, uint256, uint256, address[], uint[], address[], uint[], address[], uint[]));
 
         uint j;
         address[] memory listingNftAddresses = new address[](listingsLength);
@@ -101,7 +112,7 @@ contract Broker{
         i = j;
 
         address[] memory offerTokenAddresses = new address[](offerErc20Length);
-        for(; j<20*offerErc20Length + i; j+=20){
+        for(; j<32*offerErc20Length + i; j+=32){
             assembly {mstore(add(offerTokenAddresses, j), mload(add(_data, j)))}
         }
         i = j;

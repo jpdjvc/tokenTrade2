@@ -15,23 +15,105 @@ function bigToNorm(x) {
     return res;
 }
 
-async function createSignature(tokens, tiers, signer) {
-    if(tokens.length != tiers.length) {
-        console.log("BAD LENGTH IN CREATESIGNATURE()")
+/*
+_data SHOULD BE IN ORDER OF:
+uint listingsLength,
+uint offerNftLength,
+uint offerErc20Length,
+address[] listingNftAddresses,
+uint[] listingNftIds,
+address[] offerNftAddresses, 
+uint[] offerNftIds,
+address[] offerTokenAddresses,
+uint[] offerTokenAmounts
+*/
+
+
+// async function createSignature(tokens, tiers, signer) {
+//     if(tokens.length != tiers.length) {
+//         console.log("BAD LENGTH IN CREATESIGNATURE()");
+//         return -1;
+//     }
+
+//     let types = [];
+//     for(let i = 0; i < tokens.length*2; i++) {
+//         types.push("uint256");
+//     }
+
+//     let values = tokens.concat(tiers);
+
+//     let messageHash = ethers.utils.solidityKeccak256(types, values);
+//     let sig = await signer.signMessage(hre.ethers.utils.arrayify(messageHash));
+//     return sig;
+// }
+
+// async function createSignature(data, signer){
+//     if(data.length != 9){
+//         console.log("Data incomplete in createSignature()");
+//         return -1;
+//     }
+//     let listingsLength = data[0];
+//     let offerNftLength = data[1];
+//     let offerErc20Length = data[2];
+//     // console.log("listingsLength: ", listingsLength);
+//     // console.log("offerNftLength: ", offerNftLength);
+//     // console.log("offerErc20Length: ", offerErc20Length);
+
+//     let types = ['uint256', 'uint256', 'uint256'];
+//     for(let i=0; i<listingsLength; i++){
+//         types.push("address");
+//     }
+//     for(let i=0; i<listingsLength; i++){
+//         types.push("uint256");
+//     }
+//     for(let i=0; i<offerNftLength; i++){
+//         types.push("address");
+//     }
+//     for(let i=0; i<offerNftLength; i++){
+//         types.push("uint256");
+//     }
+//     for(let i=0; i<offerErc20Length; i++){
+//         types.push("address");
+//     }
+//     for(let i=0; i<offerErc20Length; i++){
+//         types.push("uint256");
+//     }
+
+//     let d = data.slice(0, 3);
+//     for(let i=3; i<9; i++){
+//         d = d.concat(data[i]);
+//     }
+
+//     console.log("types: ", types);
+//     console.log("d: ", d);
+
+//     bytes = ethers.utils.defaultAbiCoder.encode(types, d);
+//     let messageHash = ethers.utils.solidityKeccak256(types, d);
+//     console.log("messageHash {createSignature()}: ", messageHash);
+//     let sig = await signer.signMessage(ethers.utils.arrayify(messageHash));
+//     return [sig, bytes];
+// }
+
+
+
+async function createSignature(data, signer){
+    if(data.length != 9){
+        console.log("Data incomplete in createSignature()");
         return -1;
     }
 
-    let types = []
-    for(let i = 0; i < tokens.length*2; i++) {
-        types.push("uint256");
-    }
-
-    let values = tokens.concat(tiers);
-
-    let messageHash = ethers.utils.solidityKeccak256(types, values)
-    let sig = await signer.signMessage(hre.ethers.utils.arrayify(messageHash));
-    return sig;
+    let dataTypes = ["uint256", "uint256", "uint256", "address[]", "uint[]", "address[]", "uint[]", "address[]", "uint[]"];
+    let encodedData = ethers.utils.defaultAbiCoder.encode(dataTypes, data);
+    let messageHash = ethers.utils.solidityKeccak256(dataTypes, data);
+    // let messageHash = ethers.utils.solidityKeccak256(encodedData);
+    console.log("message hash: ", messageHash);
+    let sig = await signer.signMessage(ethers.utils.arrayify(messageHash));
+    return [sig, encodedData];
 }
+
+
+
+
 
 
 describe('Basic Broker Testing', async function() {
@@ -58,7 +140,7 @@ describe('Basic Broker Testing', async function() {
 
         // * Create and deploy NFTs; store contacts in this.nfts[]
         this.factory = await ethers.getContractFactory('NFT')
-        for(let i = 0; i < numERC20; i++) {
+        for(let i = 0; i < numNFTs; i++) {
             let tempToken = await this.factory.deploy();
             await tempToken.deployed();
             this.nfts.push(tempToken);
@@ -67,11 +149,10 @@ describe('Basic Broker Testing', async function() {
         // * Create and deploy the Broker
         this.factory = await ethers.getContractFactory('Broker');
         this.broker = await this.factory.deploy();
-       
+
 
     });
 
-        
     it('Single NFT swap', async function () {
         // give account[0] 1 nft from nfts[0]
         await this.nfts[0].connect(this.accounts[0]).mint();
@@ -80,9 +161,68 @@ describe('Basic Broker Testing', async function() {
         await this.nfts[0].connect(this.accounts[1]).mint();
 
         let sig0 = createSignature
+    });
 
 
+    it("Makes listing", async function(){
+        this.listings = [];
+        this.listings.push(([this.nfts[0].address, 0]));
+    });
+
+    /*
+    _data SHOULD BE IN ORDER OF:
+    uint listingsLength,
+    uint offerNftLength,
+    uint offerErc20Length,
+    address[] listingNftAddresses,
+    uint[] listingNftIds,
+    address[] offerNftAddresses, 
+    uint[] offerNftIds,
+    address[] offerTokenAddresses,
+    uint[] offerTokenAmounts
+    */
+    it("Creates offer", async function(){
+        // create offer by account[1] to bid on single nft from account[0]
+        this.offers = [];
+        let data = [            
+            1,
+            1,
+            1,
+            [this.listings[0][0]],
+            [this.listings[0][1]],
+            [this.nfts[0].address],
+            [1],
+            [this.erc20s[0].address],
+            [10]
+        ];
+
+        const [signedMessage, dataBytes] = await createSignature(data, this.accounts[1])
+        
+        this.offers.push({
+            "signature":signedMessage,
+            "offererAddress": this.accounts[0].address,
+            "data": data,
+            "dataBytes": dataBytes
+        });
+        // console.log(this.offers[0]);
+    });
+
+    it("verifies signature", async function(){
+        expect(await this.broker.connect(this.accounts[0])._verifySignature(
+            this.offers[0]["signature"], 
+            this.offers[0]["dataBytes"],
+            this.accounts[0].address
+            )).to.equal(true);
     })
+
+    
+
+
+
+        
+
+
+
 
 
 });
