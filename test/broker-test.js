@@ -47,52 +47,6 @@ uint[] offerTokenAmounts
 //     return sig;
 // }
 
-// async function createSignature(data, signer){
-//     if(data.length != 9){
-//         console.log("Data incomplete in createSignature()");
-//         return -1;
-//     }
-//     let listingsLength = data[0];
-//     let offerNftLength = data[1];
-//     let offerErc20Length = data[2];
-//     // console.log("listingsLength: ", listingsLength);
-//     // console.log("offerNftLength: ", offerNftLength);
-//     // console.log("offerErc20Length: ", offerErc20Length);
-
-//     let types = ['uint256', 'uint256', 'uint256'];
-//     for(let i=0; i<listingsLength; i++){
-//         types.push("address");
-//     }
-//     for(let i=0; i<listingsLength; i++){
-//         types.push("uint256");
-//     }
-//     for(let i=0; i<offerNftLength; i++){
-//         types.push("address");
-//     }
-//     for(let i=0; i<offerNftLength; i++){
-//         types.push("uint256");
-//     }
-//     for(let i=0; i<offerErc20Length; i++){
-//         types.push("address");
-//     }
-//     for(let i=0; i<offerErc20Length; i++){
-//         types.push("uint256");
-//     }
-
-//     let d = data.slice(0, 3);
-//     for(let i=3; i<9; i++){
-//         d = d.concat(data[i]);
-//     }
-
-//     console.log("types: ", types);
-//     console.log("d: ", d);
-
-//     bytes = ethers.utils.defaultAbiCoder.encode(types, d);
-//     let messageHash = ethers.utils.solidityKeccak256(types, d);
-//     console.log("messageHash {createSignature()}: ", messageHash);
-//     let sig = await signer.signMessage(ethers.utils.arrayify(messageHash));
-//     return [sig, bytes];
-// }
 
 
 
@@ -103,10 +57,8 @@ async function createSignature(data, signer){
     }
 
     let dataTypes = ["uint256", "uint256", "uint256", "address[]", "uint[]", "address[]", "uint[]", "address[]", "uint[]"];
-    let encodedData = ethers.utils.defaultAbiCoder.encode(dataTypes, data);
+    let encodedData = ethers.utils.solidityPack(dataTypes, data);
     let messageHash = ethers.utils.solidityKeccak256(dataTypes, data);
-    // let messageHash = ethers.utils.solidityKeccak256(encodedData);
-    console.log("message hash: ", messageHash);
     let sig = await signer.signMessage(ethers.utils.arrayify(messageHash));
     return [sig, encodedData];
 }
@@ -207,13 +159,35 @@ describe('Basic Broker Testing', async function() {
         // console.log(this.offers[0]);
     });
 
-    it("verifies signature", async function(){
+    it("verify Offerer signature", async function(){
         expect(await this.broker.connect(this.accounts[0])._verifySignature(
             this.offers[0]["signature"], 
             this.offers[0]["dataBytes"],
-            this.accounts[0].address
+            this.accounts[1].address
             )).to.equal(true);
+    });
+
+    it("Verifies seller signature", async function (){
+        const [signedMessage, dataBytes] = await createSignature(this.offers[0].data, this.accounts[0])
+
+        expect(await this.broker.connect(this.accounts[0])._verifySignature(
+            signedMessage,
+            this.offers[0].dataBytes,
+            this.accounts[0].address
+        )).to.equal(true, "did not verify seller signature correctly");
+    });
+
+    it("accepts offer", async function(){
+        const [signedMessage, dataBytes] = await createSignature(this.offers[0].data, this.accounts[0])
+        // console.log(this.offers[0]);
+        await this.broker.connect(this.accounts[0]).executeTrade(
+            signedMessage,
+            this.offers[0].signature,
+            this.offers[0].offererAddress,
+            this.offers[0].data
+        )
     })
+    
 
     
 

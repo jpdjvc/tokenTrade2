@@ -33,17 +33,17 @@ contract Broker{
     function _verifySignature(
         bytes calldata _signature, 
         bytes memory _data, 
-        address _expectedAddress) public view returns(bool) {
+        address _expectedAddress) public pure returns(bool) {
 
         
-        
-        bytes32 dataHash = keccak256(abi.encodePacked(_data));
+        // bytes32 dataHash = keccak256(abi.encodePacked(_data));
+        bytes32 dataHash = keccak256(_data);
 
-        console.logBytes32(dataHash);
+        // console.logBytes32(dataHash);
         bytes32 message = ECDSA.toEthSignedMessageHash(dataHash);
-        console.logBytes32(message);
+        // console.logBytes32(message);
         address recoveredAddress = ECDSA.recover(message, _signature);
-        // require(recoveredAddress != _expectedAddress);
+        require(recoveredAddress == _expectedAddress);
         return recoveredAddress == _expectedAddress;
     }
 
@@ -65,9 +65,14 @@ contract Broker{
         address _offererAddress,
         bytes memory _data
         ) external {
-
+        
+        // console.logString("here1");
         require(_verifySignature(_sellerSignature, _data, msg.sender));
+        // console.logString("here2");
         require(_verifySignature(_offererSignature, _data, _offererAddress));
+        // console.logString("here3");
+        console.logBytes(_data);
+
 
         uint listingsLength;
         uint offerNftLength;
