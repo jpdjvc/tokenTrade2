@@ -29,25 +29,6 @@ uint[] offerTokenAmounts
 */
 
 
-// async function createSignature(tokens, tiers, signer) {
-//     if(tokens.length != tiers.length) {
-//         console.log("BAD LENGTH IN CREATESIGNATURE()");
-//         return -1;
-//     }
-
-//     let types = [];
-//     for(let i = 0; i < tokens.length*2; i++) {
-//         types.push("uint256");
-//     }
-
-//     let values = tokens.concat(tiers);
-
-//     let messageHash = ethers.utils.solidityKeccak256(types, values);
-//     let sig = await signer.signMessage(hre.ethers.utils.arrayify(messageHash));
-//     return sig;
-// }
-
-
 function encode(data){
     let dataTypes = ["address[]", "uint[]", "address[]", "uint[]", "address[]", "uint[]"];
     let encodedData = ethers.utils.defaultAbiCoder.encode(dataTypes, data);
@@ -123,6 +104,11 @@ describe('Basic Broker Testing', async function() {
         let sig0 = createSignature
     });
 
+    it('gives 100 ERC20 tokens to account 1', async function(){
+        await this.erc20s[0].connect(this.accounts[0]).transfer(this.accounts[1].address, 100);
+        // console.log(await this.erc20s[0].balanceOf(this.accounts[1].address));
+    })
+
 
     it("Makes listing", async function(){
         this.listings = [];
@@ -156,6 +142,7 @@ describe('Basic Broker Testing', async function() {
 
         
         await this.erc20s[0].connect(this.accounts[1]).approve(this.broker.address, 10);
+        expect(await this.erc20s[0].allowance(this.accounts[1].address, this.broker.address)).to.equal(10);
         await this.nfts[0].connect(this.accounts[1]).approve(this.broker.address, 1);
 
         const [signedMessage, dataBytes] = await createSignature(data, this.accounts[1])
@@ -166,9 +153,7 @@ describe('Basic Broker Testing', async function() {
             "offererAddress": this.accounts[1].address,
             "data": data,
             "dataBytes": dataBytes,
-            // 'packedData': packedData
         });
-        // console.log(this.offers[0]);
     });
 
     it("verify Offerer signature", async function(){
@@ -189,30 +174,18 @@ describe('Basic Broker Testing', async function() {
     });
 
     it("accepts offer", async function(){
-        // const [signedMessage, dataBytes] = await createSignature(this.offers[0].data, this.accounts[0])
-        // console.log(this.offers[0]);
-        // console.log(
-        //     this.signedMessage, 
-        //     this.offers[0].signature,
-        //     this.offers[0].offererAddress,
-        //     this.offers[0].dataBytes);
-        // console.log("offer: ", this.offers[0]);
 
         await this.broker.connect(this.accounts[0]).executeTrade(
             this.signedMessage,
             this.offers[0].signature,
             this.offers[0].offererAddress,
-            this.offers[0].dataBytes,
-            {gasLimit: 30000000}
-        )
+            this.offers[0].dataBytes)
+
+        expect(await this.erc20s[0].balanceOf(this.accounts[1].address)).to.equal(90);
+        expect(await this.nfts[0].ownerOf(0)).to.equal(this.accounts[1].address);
+        expect(await this.nfts[0].ownerOf(1)).to.equal(this.accounts[0].address);
     });
 
-    // it("tests decoding", async function(){
-    //     console.log("Address of listing NFT: ", this.nfts[0].address);
-    //     let encodedData = encode(this.offers[0].data);
-    //     await this.broker.connect(this.accounts[0]).decodeData(encodedData);
-
-    // })
     
 
     
