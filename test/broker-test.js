@@ -50,6 +50,16 @@ async function createSignature(data, signer){
     return [sig, encodedData];
 }
 
+async function acceptTrade(broker, offer, executingAccount){
+    [signedMessage, _] = await createSignature(offer.data, executingAccount);
+
+    await broker.connect(executingAccount).executeTrade(
+        signedMessage,
+        offer.signature,
+        offer.offererAddress,
+        offer.dataBytes);
+}
+
 
 
 
@@ -145,7 +155,7 @@ describe('Basic Broker Testing', async function() {
         expect(await this.erc20s[0].allowance(this.accounts[1].address, this.broker.address)).to.equal(10);
         await this.nfts[0].connect(this.accounts[1]).approve(this.broker.address, 1);
 
-        const [signedMessage, dataBytes] = await createSignature(data, this.accounts[1])
+        let [signedMessage, dataBytes] = await createSignature(data, this.accounts[1])
         
 
         this.offers.push({
@@ -173,31 +183,44 @@ describe('Basic Broker Testing', async function() {
         )).to.equal(true, "did not verify seller signature correctly");
     });
 
-    it("accepts offer", async function(){
+    it("Uses invalid Offerer signature", async function(){
+        [signedMessage, _] = await createSignature(this.offers[0].data, this.accounts[0]);
+        await expect(this.broker.connect(this.accounts[0]).executeTrade(
+            signedMessage, 
+            signedMessage,
+            this.offers[0].offererAddress,
+            this.offers[0].dataBytes)).to.be.revertedWith("Invalid Signature");
+    })
 
-        await this.broker.connect(this.accounts[0]).executeTrade(
-            this.signedMessage,
+    it("Uses invalid Seller signature", async function(){
+        // wrong account signing
+        [signedMessage, _] = await createSignature(this.offers[0].data, this.accounts[1]);
+
+        await expect(this.broker.connect(this.accounts[0]).executeTrade(
+            signedMessage, 
             this.offers[0].signature,
             this.offers[0].offererAddress,
-            this.offers[0].dataBytes)
+            this.offers[0].dataBytes)).to.be.revertedWith("Invalid Signature");
+    })
+
+    it("Attempts to accept transaction from non seller account", async function(){
+        [signedMessage, _] = await createSignature(this.offers[0].data, this.accounts[1]);
+        // wrong account executing trade
+        await expect(this.broker.connect(this.accounts[1]).executeTrade(
+            signedMessage, 
+            this.offers[0].signature,
+            this.offers[0].offererAddress,
+            this.offers[0].dataBytes)).to.be.revertedWith("Invalid Signature");
+    })
+
+    it("accepts offer", async function(){
+
+        await acceptTrade(this.broker, this.offers[0], this.accounts[0]);
 
         expect(await this.erc20s[0].balanceOf(this.accounts[1].address)).to.equal(90);
         expect(await this.nfts[0].ownerOf(0)).to.equal(this.accounts[1].address);
         expect(await this.nfts[0].ownerOf(1)).to.equal(this.accounts[0].address);
     });
-
-    
-
-    
-
-
-
-        
-
-
-
-
-
 });
 
 

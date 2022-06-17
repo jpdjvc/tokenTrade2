@@ -33,7 +33,7 @@ contract Broker{
         bytes32 dataHash = keccak256(_data);
         bytes32 message = ECDSA.toEthSignedMessageHash(dataHash);
         address recoveredAddress = ECDSA.recover(message, _signature);
-        require(recoveredAddress == _expectedAddress, "Signature not verified");
+        require(recoveredAddress == _expectedAddress, "Invalid Signature");
         return recoveredAddress == _expectedAddress;
     }
 
